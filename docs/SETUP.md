@@ -302,3 +302,29 @@ terraform plan   # "No changes" — state successfully synced
 (negligible cost — empty bucket, minimal storage). All other resources
 (EC2, etc.) will be destroyed via `terraform destroy` at the end of each
 working session.
+
+## Docker containerization
+
+Simple Flask app with 3 endpoints (`/`, `/health`, `/info`) — the `/health`
+endpoint will be used later as a Kubernetes liveness probe.
+
+```bash
+cd docker/app
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+Note: macOS blocks system-wide pip installs (PEP 668), hence the virtual
+environment. `venv/` is excluded via `.gitignore`.
+
+Local dev server tested on port 8080 (5000 conflicts with macOS AirPlay
+Receiver).
+
+```bash
+docker build -t modular-cicd-app:v1 .
+docker run -d -p 8080:8080 --name modular-cicd-test modular-cicd-app:v1
+curl http://localhost:8080/health   # {"status":"healthy"}
+```
+
+✅ Verified: containerized app responds correctly on all 3 endpoints.
