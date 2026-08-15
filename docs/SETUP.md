@@ -228,3 +228,34 @@ helm version              # v4.2.4
 - Jenkins → will run as a Docker container (CI/CD phase)
 
 - Prometheus/Grafana → will be installed via Helm chart inside the Kind cluster (observability phase)
+
+## AWS region
+
+`us-east-1` selected for cost optimization (this is a learning/portfolio
+project, not a latency-sensitive production workload). Full trade-off
+analysis in [`docs/decisions/001-region-selection.md`](./decisions/001-region-selection.md).
+
+## AWS CLI configuration
+
+```bash
+aws configure
+# AWS Access Key ID: [personal access key, created via IAM > Users > daniel.velasquez > Security credentials]
+# AWS Secret Access Key: [secret, shown once at creation]
+# Default region name: us-east-1
+# Default output format: json
+```
+
+Verified with:
+```bash
+aws sts get-caller-identity
+```
+
+```json
+{
+    "UserId": "AIDAT7JEI7PPEPM7Y5QYJ",
+    "Account": "273343380446",
+    "Arn": "arn:aws:iam::273343380446:user/daniel.velasquez"
+}
+```
+
+✅ Confirmed connection to Netcentric AG PoC Account.
