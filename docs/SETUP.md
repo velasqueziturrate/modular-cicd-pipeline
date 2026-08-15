@@ -259,3 +259,46 @@ aws sts get-caller-identity
 ```
 
 ✅ Confirmed connection to Netcentric AG PoC Account.
+
+Verified:
+```bash
+terraform init   # downloaded hashicorp/aws v5.100.0
+terraform plan   # "No changes. Your infrastructure matches the configuration."
+```
+
+✅ Terraform successfully connected to AWS, no resources created yet.
+
+ Note: AWS automatically tags the access key's description onto the IAM
+user (tag key = access key ID, value = description text). This is
+AWS's default behavior for key descriptions, unrelated to the project's
+`Project=Swedbank` tagging convention applied via Terraform.
+
+## Terraform remote state
+
+First real AWS resource created: S3 bucket for Terraform state storage.
+
+`terraform/backend-bootstrap.tf` — creates the bucket with:
+- Versioning enabled
+- Server-side encryption (AES256)
+- Public access fully blocked
+
+```bash
+terraform apply   # created: aws_s3_bucket, aws_s3_bucket_versioning,
+                   # aws_s3_bucket_server_side_encryption_configuration,
+                   # aws_s3_bucket_public_access_block
+```
+
+Bucket name: `dvi-modular-cicd-pipeline-tfstate`
+
+`terraform/backend.tf` — configures Terraform to use this bucket as
+remote backend:
+
+```bash
+terraform init   # migrated local state to S3 backend (confirmed with "yes")
+terraform plan   # "No changes" — state successfully synced
+```
+
+✅ This is the only resource kept running permanently between sessions
+(negligible cost — empty bucket, minimal storage). All other resources
+(EC2, etc.) will be destroyed via `terraform destroy` at the end of each
+working session.
