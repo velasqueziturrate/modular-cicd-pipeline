@@ -328,3 +328,30 @@ curl http://localhost:8080/health   # {"status":"healthy"}
 ```
 
 ✅ Verified: containerized app responds correctly on all 3 endpoints.
+
+
+## Kubernetes (Kind)
+
+```bash
+kind create cluster --name modular-cicd-pipeline
+kubectl get nodes   # 1 node, Ready
+
+kind load docker-image modular-cicd-app:v1 --name modular-cicd-pipeline
+kubectl apply -f k8s/base/deployment.yaml
+kubectl apply -f k8s/base/service.yaml
+```
+
+- Deployment: 2 replicas, `imagePullPolicy: Never` (uses locally loaded image, no registry needed yet)
+- Liveness/readiness probes wired to the `/health` endpoint
+- Service type: NodePort
+
+Verified via:
+```bash
+kubectl get pods   # 2/2 Running
+kubectl port-forward service/modular-cicd-app-service 8081:80
+curl http://localhost:8081/health   # {"status":"healthy"}
+```
+
+Note: `port-forward` pins to a single pod for the life of the connection,
+so it doesn't demonstrate Service load-balancing directly — that's expected
+behavior, not a bug.
