@@ -27,9 +27,9 @@ Decisions are documented in [`docs/decisions`](./docs/decisions) (ADRs) and summ
 
 - [x] Project structure
 - [x] AWS provider configuration with default tags
-- [ ] Terraform remote state (S3 backend)
-- [ ] Docker containerization
-- [ ] Kubernetes deployment (Kind)
+- [x] Terraform remote state (S3 backend)
+- [x] Docker containerization
+- [x] Kubernetes deployment (Kind)
 - [ ] CI/CD pipeline
 - [ ] Ansible configuration management
 - [ ] Observability stack (Prometheus/Grafana)
