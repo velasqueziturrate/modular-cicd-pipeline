@@ -369,3 +369,93 @@ Note: initial workflow file was accidentally created in the repo root
 instead of `.github/workflows/` due to a failed `cd` into a non-existent
 directory — GitHub Actions only detects workflows in that exact path.
 Fixed by moving the file with `git mv`.
+
+
+
+## Container registry: ECR attempt and pivot to Nexus
+
+Initially attempted **ECR** as the container registry, integrated with the
+
+existing CI/CD pipeline:
+
+```bash
+
+# terraform/ecr.tf — created the ECR repository
+
+terraform apply   # created aws_ecr_repository, aws_ecr_lifecycle_policy
+
+# terraform/iam-github-actions.tf — dedicated IAM user for GitHub Actions,
+
+# least-privilege policy scoped to a single repository (push/pull only,
+
+# no admin actions)
+
+terraform apply   # created aws_iam_user, aws_iam_access_key, aws_iam_user_policy
+
+# Credentials added as GitHub Secrets:
+
+# AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+
+```
+
+GitHub Actions workflow was updated to authenticate against AWS and push
+
+to ECR on every push to `main`.
+
+**Result: push denied.**
+
+denied: User: arn:aws:iam::273343380446:user/github-actions-ecr-push is not
+authorized to perform: ecr:GetDownloadUrlForLayer ... with an explicit deny
+in a service control policy: arn:aws:organizations::.../p-u4gij31a
+
+
+
+This is an **AWS Organizations Service Control Policy (SCP)** — a
+
+restriction above the account/IAM level, applied by Netcentric's
+
+organizational governance. No IAM policy, regardless of scope, can
+
+override an SCP explicit deny.
+
+Diagnosed the exact scope before abandoning ECR:
+
+```bash
+
+aws ecr describe-repositories --region us-east-1   # ✅ succeeds (read allowed)
+
+# push (PutImage, GetDownloadUrlForLayer, etc.)      # ❌ denied (write blocked)
+
+```
+
+Confirmed with the account owner this is deliberate organizational policy,
+
+not an oversight, and won't be exempted for this use case.
+
+**Decision**: pivot to **Nexus** (self-hosted, no AWS account dependency).
+
+Full reasoning in [`docs/decisions/003-nexus-vs-ecr.md`](./decisions/003-nexus-vs-ecr.md).
+
+Cleanup performed:
+
+```bash
+
+terraform destroy -target=aws_ecr_repository.modular_cicd_app \
+
+  -target=aws_ecr_lifecycle_policy.modular_cicd_app \
+
+  -target=aws_iam_user.github_actions \
+
+  -target=aws_iam_access_key.github_actions \
+
+  -target=aws_iam_user_policy.ecr_push
+
+rm terraform/ecr.tf terraform/iam-github-actions.tf
+
+# GitHub Secrets (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) removed manually
+
+# Workflow reverted to build-only (push: false)
+
+```
+
+✅ Verified clean: `terraform plan` shows `No changes` — no orphaned resources.
