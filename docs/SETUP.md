@@ -355,3 +355,17 @@ curl http://localhost:8081/health   # {"status":"healthy"}
 Note: `port-forward` pins to a single pod for the life of the connection,
 so it doesn't demonstrate Service load-balancing directly — that's expected
 behavior, not a bug.
+
+## CI/CD (GitHub Actions)
+
+`.github/workflows/docker-build.yml` — builds the Docker image on every
+push/PR that touches `docker/app/**`, using GitHub's build cache for
+speed. Currently validates the build only (`push: false`) — pushing to
+a registry (Nexus vs. ECR) is a future step.
+
+✅ Verified: workflow runs automatically on push, build passes (green check).
+
+Note: initial workflow file was accidentally created in the repo root
+instead of `.github/workflows/` due to a failed `cd` into a non-existent
+directory — GitHub Actions only detects workflows in that exact path.
+Fixed by moving the file with `git mv`.
