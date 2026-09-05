@@ -1,4 +1,11 @@
 name: Docker Build
+# NOTE: This workflow validates the Docker build only (push: false).
+# Pushing to Nexus is NOT automated here because Nexus runs self-hosted
+# on localhost, which is unreachable from GitHub-hosted runners (no
+# public IP/DNS). In a real deployment, Nexus would run on infrastructure
+# reachable from the CI runner (e.g. a VPN-accessible server or a
+# publicly routable instance), making automated push feasible.
+# See docs/decisions/003-nexus-vs-ecr.md for the full trade-off analysis.
 
 on:
   push:
