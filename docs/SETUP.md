@@ -490,3 +490,39 @@ This mirrors the same principle applied in ADR 002 (Terraform): separate
 ephemeral infrastructure (the container itself, disposable) from
 persistent state (configuration data, which must survive container
 recreation).
+
+
+## Observability (Prometheus + Grafana via Helm)
+
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+kubectl create namespace monitoring
+
+helm install monitoring prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --set grafana.adminPassword=admin123
+```
+
+Deployed via the `kube-prometheus-stack` Helm chart, which bundles
+Prometheus, Grafana, Alertmanager, node-exporter, and kube-state-metrics
+into a single install — the standard approach for Kubernetes monitoring.
+
+```bash
+kubectl get pods -n monitoring   # all components Running
+```
+
+Access Grafana:
+```bash
+export POD_NAME=$(kubectl --namespace monitoring get pod -l "app.kubernetes.io/name=grafana,app.kubernetes.io/instance=monitoring" -oname)
+kubectl --namespace monitoring port-forward $POD_NAME 3000
+# http://localhost:3000, admin / admin123
+```
+
+✅ Verified: Grafana loads with pre-built dashboards (Kubernetes Compute
+Resources, API server, CoreDNS, etcd, Alertmanager Overview) — no manual
+dashboard creation needed for baseline cluster observability.
+
+Note: `admin123` is a throwaway password for this local, non-exposed
+environment only.

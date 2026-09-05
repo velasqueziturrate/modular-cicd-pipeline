@@ -31,8 +31,8 @@ Decisions are documented in [`docs/decisions`](./docs/decisions) (ADRs) and summ
 - [x] Docker containerization
 - [x] Kubernetes deployment (Kind)
 - [x] CI/CD pipeline
-- [ ] Ansible configuration management
-- [ ] Observability stack (Prometheus/Grafana)
+- [] Ansible configuration management
+- [x] Observability stack (Prometheus/Grafana)
 
 ## Repository structure
 
