@@ -77,3 +77,26 @@ diagnostic process that led to the pivot.
 
   `terraform destroy -target=...` to avoid leaving orphaned infrastructure.
 
+## Update: Nexus network reachability from CI/CD
+
+After pivoting to Nexus, a further constraint was identified: **GitHub
+Actions runners cannot reach `localhost` on the developer's machine.**
+GitHub-hosted runners execute in GitHub's cloud infrastructure, isolated
+from any local network — they have no route to a Nexus instance running
+on a laptop.
+
+This is a fundamentally different trade-off than the ECR SCP block:
+- The **ECR block** was a deliberate governance restriction (fixable only
+  by changing organizational policy).
+- The **Nexus reachability issue** is a topology/networking constraint of
+  this practice environment specifically. In a real deployment, Nexus
+  would run on infrastructure with a stable, reachable address (an
+  internal server, a VPN-accessible host, or a cloud VM) — at which point
+  automated push from CI would work exactly like it would with ECR.
+
+**Resolution for this project**: the CI/CD pipeline automates the Docker
+**build and validation** step (`docker build`, cached via GitHub Actions).
+The **push to Nexus** is performed manually/locally, with this limitation
+explicitly documented here rather than worked around with unnecessary
+complexity (e.g. tunneling tools like ngrok) that wouldn't reflect a
+realistic production setup.

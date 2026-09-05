@@ -459,3 +459,34 @@ rm terraform/ecr.tf terraform/iam-github-actions.tf
 ```
 
 ✅ Verified clean: `terraform plan` shows `No changes` — no orphaned resources.
+
+
+## Nexus: lesson learned on persistent volumes
+
+Initial Nexus container was created without a Docker volume and without
+the Docker-protocol port (8082) exposed:
+```bash
+docker run -d -p 8081:8081 --name nexus sonatype/nexus3
+```
+
+Docker port mappings can only be set at container creation — they cannot
+be added to a running container. Since port 8082 (required for the Docker
+registry protocol) was missing, the container had to be destroyed and
+recreated with the correct port mapping.
+
+Because no volume was attached, all Nexus configuration (admin password,
+repository setup) was stored only inside the container's writable layer
+and was lost on removal — requiring the initial setup wizard to be
+repeated from scratch.
+
+**Fix**: recreate with both required ports and a named volume for
+persistent data:
+```bash
+docker run -d -p 8081:8081 -p 8082:8082 --name nexus \
+  -v nexus-data:/nexus-data sonatype/nexus3
+```
+
+This mirrors the same principle applied in ADR 002 (Terraform): separate
+ephemeral infrastructure (the container itself, disposable) from
+persistent state (configuration data, which must survive container
+recreation).

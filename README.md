@@ -30,7 +30,7 @@ Decisions are documented in [`docs/decisions`](./docs/decisions) (ADRs) and summ
 - [x] Terraform remote state (S3 backend)
 - [x] Docker containerization
 - [x] Kubernetes deployment (Kind)
-- [ ] CI/CD pipeline
+- [x] CI/CD pipeline
 - [ ] Ansible configuration management
 - [ ] Observability stack (Prometheus/Grafana)
 
