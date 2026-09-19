@@ -12,7 +12,7 @@ Each stage of the pipeline can be swapped for an alternative, and both options a
 
 | Stage | Options |
 |---|---|
-| CI/CD | GitHub Actions vs. Jenkins |
+| CI/CD | GitHub Actions (implemented) vs. Jenkins (documented, not implemented — see [comparison](./docs/comparisons/jenkins-vs-github-actions.md)) |
 | Container registry | Nexus Repository vs. Amazon ECR |
 | IaC | Terraform |
 | Configuration management | Ansible |
