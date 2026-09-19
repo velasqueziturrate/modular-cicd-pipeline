@@ -526,3 +526,38 @@ dashboard creation needed for baseline cluster observability.
 
 Note: `admin123` is a throwaway password for this local, non-exposed
 environment only.
+
+
+## Ansible
+
+Demonstrates configuration management on a Terraform-provisioned EC2
+instance: create infrastructure → configure with Ansible → verify →
+destroy, all within a single working session to minimize cost exposure.
+
+```bash
+# SSH key pair, created once
+aws ec2 create-key-pair --key-name modular-cicd-ansible \
+  --query 'KeyMaterial' --output text --region us-east-1 \
+  > ~/.ssh/modular-cicd-ansible.pem
+chmod 400 ~/.ssh/modular-cicd-ansible.pem
+
+# Terraform: EC2 instance + security group (terraform-sandbox/ec2-ansible-target.tf)
+cd terraform-sandbox
+terraform apply
+
+# Ansible: install and configure Docker
+cd ../ansible
+ansible ansible_targets -i inventory.ini -m ping   # connectivity check
+ansible-playbook -i inventory.ini install-docker.yml
+
+# Cleanup — always destroy immediately after verification
+cd ../terraform-sandbox
+terraform destroy
+```
+
+✅ Verified: Docker 25.0.14 installed, service enabled, `ec2-user` added to
+`docker` group. Instance destroyed immediately after (`terraform state
+list` confirms empty).
+
+Note: `inventory.ini` is gitignored (contains instance IP and private key
+path); `inventory.ini.example` is committed as a template.
