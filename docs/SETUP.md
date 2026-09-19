@@ -1,4 +1,14 @@
 # Project Setup
+## Quick reference (for future-me revisiting this project)
+
+- **AWS account**: Netcentric AG PoC (ID `273343380446`), shared corporate account — not personal AWS
+- **AWS credentials**: personal IAM access key, configured via `aws configure`; stored in `~/.aws/credentials`, never in this repo
+- **GitHub PAT**: classic token, `repo` scope, 90-day expiration — regenerate at github.com/settings/tokens when it expires (needed for `git push` due to the work-account Keychain conflict, see below)
+- **SSH key for Ansible**: `~/.ssh/modular-cicd-ansible.pem` — NOT committed, recreate with `aws ec2 create-key-pair` if missing
+- **Terraform state**: S3 bucket `dvi-modular-cicd-pipeline-tfstate`, region `us-east-1` — the only resource meant to persist between sessions
+- **Nexus**: runs locally via `docker run` (see Nexus section below), admin password `admin123`, data persisted in Docker volume `nexus-data`
+- **Kind cluster name**: `modular-cicd-pipeline`
+- **Before doing anything else**: run `docker ps`, `kind get clusters`, and `terraform state list` (in both `terraform/` and `terraform-sandbox/`) to confirm nothing is unexpectedly running
 
 ## Repository
 
