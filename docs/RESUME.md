@@ -5,35 +5,33 @@ a long pause. Read this before touching anything else.
 
 ## 1. Current state (as of the pause)
 
-- **AWS**: only one resource exists — the Terraform state bucket
-  `dvi-modular-cicd-pipeline-tfstate` (region `us-east-1`). No EC2, no ECR,
-  no IAM users beyond your own personal one. Verified clean before pausing.
-- **Local (Mac)**: Kind cluster deleted. Nexus container stopped and
-  removed, but its data volume (`nexus-data`) is preserved.
-- **GitHub**: everything up to date on `main`, nothing uncommitted.
+**Everything was intentionally torn down to zero cost/risk — nothing exists
+in AWS, nothing runs locally.** This includes the Terraform state bucket
+itself, which was deliberately destroyed (not just emptied) before pausing.
 
-## 2. First thing to do when resuming: re-verify nothing drifted
+- **AWS**: nothing. No S3 bucket, no EC2, no ECR, no IAM users beyond your
+  own personal one.
+- **Local (Mac)**: Docker daemon stopped, Kind cluster deleted, Nexus
+  container removed. The Nexus **data volume** (`nexus-data`) was preserved
+  if it still exists — check before assuming you need to redo Nexus setup
+  from scratch.
+- **GitHub**: everything up to date on `main`, all code and docs intact —
+  only the AWS-side runtime state was torn down, not the project itself.
 
-Never assume the state above is still accurate — verify it fresh:
+## 2. First thing to do when resuming: verify the above is still true
 
-```bash
-cd terraform && terraform state list && cd ..
-cd terraform-sandbox && terraform state list && cd ..
+```b terraform && terraform state list && cd ..          # expect: empty
+cd terraform-sandbox && terraform state list && cd ..   # expect: empty
+aws s3 ls | grep dvi-modular-cicd-pipeline-tfstate       # expect: nothing
 aws ec2 describe-instances --region us-east-1 \
-  --query "Reservations[].InstancState.Name!='terminated'].[InstanceId,State.Name]" \
-  --output table
+  --query "Reservations[].Instances[?State.Name!='terminated']" --output table
 docker ps -a
 kind get clusters
 docker volume ls | grep nexus
 ```
 
-Expected: `terraform/` state shows only the 4 S3 bucket resources;
-`terraform-sandbox/` is empty; no running EC2 instances; no Docker
-containers running; no Kind clusters; `nexus-data` volume still present.
+## 3. Rebuilding the local toolchain (if new machine or fresh macOS)
 
-## 3. Rebuilding the local environment from scratch
-
-Tools (if this is a new machine or a fresh macOS install):
 ```bash
 brew install --cask docker
 brew install awscli
@@ -52,30 +50,80 @@ aws configure
 Verify: `aws sts get-caller-identity` should show account `273343380446`
 (Netcentric AG PoC).
 
-## 4. Rebuilding the Kind cluster + app
+## 4. Rebuilding Terraform + the state bucket FROM ZEROThe bucket was fully destroyed, so this is a true from-scratch bootstrap —
+not a resume of existing infra.
 
 ```bash
-docker build -t modular-cicd-p:v1 docker/app
+cd terraform
+```
+
+`provider.tf` and `backend-bootstrap.tf` are already in the repo (nothing
+to rewrite). Start with **local state only** — do not add `backend.tf` yet:
+
+```bash
+terraform init
+terraform plan     # expect: 4 resources to create (the S3 bucket + its 3 sub-resources)
+terraform apply    # confirm with yes
+```
+
+Only after the bucket exists, recreate the remote backend config:
+```bash
+cat > backend.tf << 'BACKEND_EOF'
+terraform {
+  backend "s3" {
+    bucket  = "dvi-modular-cicd-pipeline-tfstate"
+    key     = "terraform.tfstate"
+    region  = "us-east-1"
+    encrypt = true
+  }
+}
+BACKEND_EOF
+
+terraform init -migrate-state   # answer "yes" to copy local state into the new S3 backend
+terraform plan                   # expect: "No changes"
+```
+
+**Lesson learned (do not repeat)**: this bucket has versioning enabled, so
+if you ever want to destroy it again later, you must first empty Abject versions (not just current objects), or `terraform destroy` fails
+with `BucketNotEmpty`:
+```bash
+aws s3api delete-objects --bucket dvi-modular-cicd-pipeline-tfstate \
+  --delete "$(aws s3api list-object-versions --bucket dvi-modular-cicd-pipeline-tfstate \
+  --query '{Objects: Versions[].{Key:Key,VersionId:VersionId}}' --output json)"
+```
+Also unset the S3 backend (`mv backend.tf backend.tf.disabled && terraform
+init -migrate-state`, answer yes) BEFORE destroying the bucket the state
+itself lives in — otherwise Terraform can't destroy the backend it's
+currently using.
+
+## 5. Rebuilding the Kind cluster + app
+
+```bash
+docker build -t modular-cicd-app:v1 docker/app
 kind create cluster --name modular-cicd-pipeline
 kind load docker-image modular-cicd-app:v1 --name modular-cicd-pipeline
 kubectl apply -f k8s/base/
 kubectl get pods   # expect 2/2 Running
 ```
 
-## 5. Restarting Nexus (with the SAME data as before)
+## 6. Restarting Nexus
 
-The volume `nexus-data` should still exist locally — this brings back your
-exact repository config and admin password without redoing setup:
+Check first whether the data volume survived:
+```bash
+docker volume ls | grep nexus
+```
 
+If `nexus-data` still exists, this rtores your exact repository config
+and admin password:
 ```bash
 docker run -d -p 8081:8081 -p 8082:8082 --name nexus \
   -v nexus-data:/nexus-data sonatype/nexus3
 ```
 
-If `docker volume ls | grep nexus` shows nothing (e.g. new machine), you'll
-need to redo the Nexus setup wizard from `docs/SETUP.md`.
+If the volume is gone (e.g. new machine, or it was pruned), redo the full
+Nexus setup wizard from `docs/SETUP.md`.
 
-## 6. Restarting observability
+## 7. Restarting observability
 
 ```bash
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -85,37 +133,38 @@ helm install monitoring prometheus-community/kube-prometheus-stack \
   --namespace monitoring --set grafana.adminPassword=admin123
 ```
 
-## 7. Ansible / EC2 sandbox — only if you want to  that demo
+## 8. Ansible / EC2 sandbox — only if you want to redo that demo
 
-Requires recreating the SSH key pair (it was never stored anywhere except
-`~/.ssh/modular-cicd-ansible.pem`, which does not survive a pause if that
-file was deleted):
+The SSH key pair does not survive a pause (it only ever existed at
+`~/.ssh/modular-cicd-ansible.pem`, never committed):
 ```bash
 aws ec2 create-key-pair --key-name modular-cicd-ansible \
   --query 'KeyMaterial' --output text --region us-east-1 \
   > ~/.ssh/modular-cicd-ansible.pem
 chmod 400 ~/.ssh/modular-cicd-ansible.pem
 ```
-Then follow the Ansible section in `docs/SETUP.md` exactly — full sequence
-is documented there (Terraform apply → Ansible playbook → verify → destroy).
+Then follow the Ansible secti in `docs/SETUP.md` exactly.
 
-## 8. Before ending any future session again
+## 9. Before ending any future session again
 
 ```bash
-# If you created any EC2 via terraform-sandbox:
+# Destroy any sandbox EC2:
 cd terraform-sandbox && terraform destroy
 
-# Always confirm nothing is left:
+# Confirm nothing left in EC2:
 aws ec2 describe-instances --region us-east-1 \
   --query "Reservations[].Instances[?State.Name!='terminated']" --output table
-# Should be empty.
 
-# Local cleanup (optional, no AWS cost either way):
+# Decide: keep the S3 state bucket running (negligible cost, convenient),
+# or tear it down to zero again (see section 4's "Lesson learned" for the
+# exact steps if you choose full teardown).
+
+# Local cleanup (no AWS cost either way, just tidiness):
 kind delete cluster --name modular-cicd-pipeline
-docker stop nexus && docker rm nexus   # keeps na volume
+docker stop nexus && docker rm nexus   # keeps nexus-data volume
 ```
 
-## 9. Where everything lives (quick index)
+## 10. Where everything lives (quick index)
 
 | What | Where |
 |---|---|
